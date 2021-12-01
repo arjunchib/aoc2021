@@ -3,7 +3,7 @@ fn main() {
     assert_eq!(calc1(include_str!("test.in")), 7);
     println!("part 1: {}", calc1(include_str!("real.in")));
 
-    // // Part 2
+    // Part 2
     assert_eq!(calc2(include_str!("test.in")), 5);
     println!("part 2: {}", calc2(include_str!("real.in")));
 }
