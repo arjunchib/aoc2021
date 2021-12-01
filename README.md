@@ -5,5 +5,5 @@
 Run the package for each day:
 
 ```
-cargo new -p day1
+cargo run -p day1
 ```
