@@ -10,7 +10,7 @@ fn main() {
     println!("part 2: {}", calc2(include_str!("real.in")));
 }
 
-fn power(input: &str) -> (usize, usize) {
+fn calc1(input: &str) -> usize {
     let mut lines = input.lines().peekable();
     let length = lines.peek().unwrap().len();
     let mut counts = vec![0; length];
@@ -34,44 +34,49 @@ fn power(input: &str) -> (usize, usize) {
     let gamma = usize::from_str_radix(binary_str.as_str(), 2).unwrap();
     let shift = usize::BITS - length as u32;
     let epsilon = !gamma << shift >> shift;
-    (gamma, epsilon)
-}
-
-fn calc1(input: &str) -> usize {
-    let (gamma, epsilon) = power(input);
     gamma * epsilon
 }
 
-fn calc2(input: &str) -> usize {
-    let (gamma, epsilon) = power(input);
-    let mut lines = input.lines().peekable();
-    let length = lines.peek().unwrap().len();
+fn find_rating(input: &str, allow_fn: &dyn Fn(usize, usize) -> char) -> usize {
+    let mut nums: HashSet<&str> = HashSet::from_iter(input.lines());
     let mut i = 0;
-    let mut possible_co2: HashSet<&str> = HashSet::from_iter(lines.clone());
-    let mut possible_o2: HashSet<&str> = HashSet::from_iter(lines.clone());
-    let gamma_str = format!("{:b}", gamma);
-    let eplison_str = format!("{:b}", epsilon);
-    while i < length {
-        if possible_co2.len() > 1 {
-            possible_co2.clone().iter().for_each(|x| {
-                if x.chars().nth(i).unwrap() != gamma_str.chars().nth(i).unwrap() {
-                    possible_co2.remove(x);
-                }
-            })
+    while nums.len() > 1 {
+        let mut num_1 = 0;
+        let length = nums.len();
+        for num in nums.clone().iter() {
+            if num.chars().nth(i).unwrap() == '1' {
+                num_1 += 1
+            }
         }
-        if possible_o2.len() > 1 {
-            possible_o2.clone().iter().for_each(|x| {
-                if x.chars().nth(i).unwrap() != eplison_str.chars().nth(i).unwrap() {
-                    possible_o2.remove(x);
-                }
-            })
+        let num_0 = length - num_1;
+        let allow_char = allow_fn(num_0, num_1);
+        for num in nums.clone().iter() {
+            if num.chars().nth(i).unwrap() != allow_char {
+                nums.remove(num);
+            }
         }
-        println!("{:?}", gamma_str);
         i += 1;
     }
-    let co2 = possible_co2.iter().next().unwrap();
-    let co2 = usize::from_str_radix(co2, 2).unwrap();
-    let o2 = possible_o2.iter().next().unwrap();
-    let o2 = usize::from_str_radix(o2, 2).unwrap();
-    co2 * o2
+    let result = nums.iter().next().unwrap();
+    usize::from_str_radix(result, 2).unwrap()
+}
+
+fn mcv(num_0: usize, num_1: usize) -> char {
+    match num_1 >= num_0 {
+        true => '1',
+        false => '0',
+    }
+}
+
+fn lcv(num_0: usize, num_1: usize) -> char {
+    match num_0 <= num_1 {
+        true => '0',
+        false => '1',
+    }
+}
+
+fn calc2(input: &str) -> usize {
+    let oxy = find_rating(input, &mcv);
+    let co2 = find_rating(input, &lcv);
+    oxy * co2
 }
