@@ -91,9 +91,7 @@ impl Game {
             self.boards.retain(|b| !b.bingo);
             self.boards.iter_mut().for_each(|b| b.mark(*n));
             match self.boards.iter().find(|b| b.bingo) {
-                Some(b) => {
-                    worst = Some(b.score() * n);
-                }
+                Some(b) => worst = Some(b.score() * n),
                 None => {}
             }
         }
