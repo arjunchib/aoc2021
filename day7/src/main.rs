@@ -8,42 +8,44 @@ fn main() {
     println!("part 2: {}", calc2(include_str!("real.in")));
 }
 
-fn calc1(input: &str) -> usize {
-    let mut crabs: Vec<usize> = input
+fn parse(input: &str) -> Vec<isize> {
+    input
         .split(",")
-        .map(|x| x.parse::<usize>().unwrap())
-        .collect();
-    crabs.sort();
-    let median = match crabs.len() % 2 {
-        0 => (crabs[crabs.len() / 2] + crabs[crabs.len() / 2 - 1]) / 2,
-        _ => crabs[crabs.len() / 2],
-    };
-    let mut dev = 0;
-    for crab in crabs {
-        dev += (median as isize - crab as isize).abs()
-    }
-    dev as usize
+        .map(|x| x.parse::<isize>().unwrap())
+        .collect()
 }
 
-fn dev2(a: isize, b: isize) -> usize {
-    let n = (a - b).abs();
-    (n * (n + 1) / 2) as usize
+fn median(a: &Vec<isize>) -> isize {
+    let mut a = a.clone();
+    a.sort();
+    let len = a.len();
+    match a.len() % 2 {
+        0 => (a[len / 2 - 1] + a[len / 2]) / 2,
+        _ => a[len / 2],
+    }
 }
 
-fn calc2(input: &str) -> usize {
-    let crabs: Vec<usize> = input
-        .split(",")
-        .map(|x| x.parse::<usize>().unwrap())
-        .collect();
-    let mut best = usize::MAX;
-    for center in 0..=*crabs.iter().max().unwrap() {
-        let mut dev = 0;
-        for crab in crabs.iter() {
-            dev += dev2(center as isize, *crab as isize);
-        }
-        if dev < best {
-            best = dev;
-        }
-    }
-    best
+fn calc1(input: &str) -> isize {
+    let crabs = parse(input);
+    let median = median(&crabs);
+    crabs
+        .into_iter()
+        .fold(0, |acc, crab| acc + (median - crab).abs())
+}
+
+fn total_moves(crabs: &Vec<isize>, center: isize) -> isize {
+    crabs.iter().fold(0, |acc, crab| {
+        let n = (crab - center).abs();
+        acc + n * (n + 1) / 2
+    })
+}
+
+fn calc2(input: &str) -> isize {
+    let crabs = parse(input);
+    let min = *crabs.iter().min().unwrap();
+    let max = *crabs.iter().max().unwrap();
+    (min..=max)
+        .map(|center| total_moves(&crabs, center))
+        .min()
+        .unwrap()
 }
