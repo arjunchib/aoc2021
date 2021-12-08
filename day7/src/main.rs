@@ -10,14 +10,14 @@ fn main() {
 
 fn parse(input: &str) -> Vec<isize> {
     input
-        .split(",")
+        .split(',')
         .map(|x| x.parse::<isize>().unwrap())
         .collect()
 }
 
 fn median(a: &Vec<isize>) -> isize {
     let mut a = a.clone();
-    a.sort();
+    a.sort_unstable();
     let len = a.len();
     match a.len() % 2 {
         0 => (a[len / 2 - 1] + a[len / 2]) / 2,
@@ -33,7 +33,7 @@ fn calc1(input: &str) -> isize {
         .fold(0, |acc, crab| acc + (median - crab).abs())
 }
 
-fn total_moves(crabs: &Vec<isize>, center: isize) -> isize {
+fn total_moves(crabs: &[isize], center: isize) -> isize {
     crabs.iter().fold(0, |acc, crab| {
         let n = (crab - center).abs();
         acc + n * (n + 1) / 2
