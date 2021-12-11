@@ -19,7 +19,7 @@ fn first_error(input: &str) -> Option<char> {
                 '[' => x == ']',
                 '<' => x == '>',
                 '{' => x == '}',
-                _ => false,
+                _ => panic!(),
             };
             if !is_valid {
                 return Some(x);
@@ -38,7 +38,7 @@ fn calc1(input: &str) -> usize {
             ']' => 57,
             '}' => 1197,
             '>' => 25137,
-            _ => 0,
+            _ => panic!(),
         })
         .sum()
 }
@@ -60,7 +60,7 @@ fn complete(input: &str) -> usize {
             '[' => ']',
             '{' => '}',
             '<' => '>',
-            _ => ' ',
+            _ => panic!(),
         })
         .fold(0, |acc, x| {
             let n = match x {
@@ -68,7 +68,7 @@ fn complete(input: &str) -> usize {
                 ']' => 2,
                 '}' => 3,
                 '>' => 4,
-                _ => 0,
+                _ => panic!(),
             };
             acc * 5 + n
         })
