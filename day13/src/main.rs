@@ -4,8 +4,7 @@ fn main() {
     println!("part 1: {}", calc1(include_str!("real.in")));
 
     // Part 2
-    assert_eq!(calc2(include_str!("test.in")), 16);
-    println!("part 2: {}", calc2(include_str!("real.in")));
+    calc2(include_str!("real.in"));
 }
 
 struct Paper {
@@ -70,7 +69,7 @@ fn calc1(input: &str) -> usize {
     p.total_visible_points()
 }
 
-fn calc2(input: &str) -> usize {
+fn calc2(input: &str) {
     let mut lines = input.lines();
     let points: Vec<(usize, usize)> = lines
         .by_ref()
@@ -91,5 +90,4 @@ fn calc2(input: &str) -> usize {
         }
     }
     println!("{:?}", p.points);
-    p.total_visible_points()
 }
