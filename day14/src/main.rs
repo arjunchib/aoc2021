@@ -13,7 +13,7 @@ fn main() {
 struct Polymer {
     template: String,
     rules: HashMap<(char, char), char>,
-    counts: HashMap<char, usize>,
+    memo: HashMap<(char, char, usize), HashMap<char, usize>>,
 }
 
 impl Polymer {
@@ -27,25 +27,31 @@ impl Polymer {
             map.insert((v[0], v[1]), w[0]);
             map
         });
-        let counts = template.chars().fold(HashMap::new(), |mut map, x| {
-            let count = map.entry(x).or_insert(0);
-            *count += 1;
-            map
-        });
         Polymer {
             template,
             rules,
-            counts,
+            memo: HashMap::new(),
         }
     }
 
     fn range(&mut self, limit: usize) -> usize {
         let els: Vec<char> = self.template.chars().collect();
-        els.windows(2)
-            .for_each(|x| self.insert(x[0], x[1], 0, limit));
+        let counts = els.iter().fold(HashMap::new(), |mut map, x| {
+            let count = map.entry(*x).or_insert(0);
+            *count += 1;
+            map
+        });
+        let counts = els.windows(2).fold(counts, |mut map, x| {
+            let counts = self.insert(x[0], x[1], 0, limit);
+            for (c, new_count) in counts {
+                let count = map.entry(c).or_insert(0);
+                *count += new_count;
+            }
+            map
+        });
         let mut min = usize::MAX;
         let mut max = usize::MIN;
-        for count in self.counts.values() {
+        for count in counts.values() {
             if *count < min {
                 min = *count
             }
@@ -56,15 +62,38 @@ impl Polymer {
         max - min
     }
 
-    fn insert(&mut self, a: char, b: char, index: usize, limit: usize) {
-        let el = *self.rules.get(&(a, b)).unwrap();
-        let count = self.counts.entry(el).or_insert(0);
-        *count += 1;
-        if index + 1 == limit {
-            return;
+    fn memo_insert(
+        &mut self,
+        a: char,
+        b: char,
+        index: usize,
+        limit: usize,
+    ) -> HashMap<char, usize> {
+        let cache = self.memo.get(&(a, b, index));
+        if cache == None {
+            let map = self.insert(a, b, index, limit);
+            self.memo.insert((a, b, index), map.clone());
+            map
+        } else {
+            cache.unwrap().clone()
         }
-        self.insert(a, el, index + 1, limit);
-        self.insert(el, b, index + 1, limit);
+    }
+
+    fn insert(&mut self, a: char, b: char, index: usize, limit: usize) -> HashMap<char, usize> {
+        if index == limit {
+            return HashMap::new();
+        }
+        let el = *self.rules.get(&(a, b)).unwrap();
+        let left = self.memo_insert(a, el, index + 1, limit);
+        let right = self.memo_insert(el, b, index + 1, limit);
+        let mut map = left.clone();
+        for (c, r_count) in right {
+            let count = map.entry(c).or_insert(0);
+            *count += r_count;
+        }
+        let count = map.entry(el).or_insert(0);
+        *count += 1;
+        map
     }
 }
 
