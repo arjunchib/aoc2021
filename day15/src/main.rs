@@ -88,5 +88,34 @@ fn calc2(input: &str) -> u32 {
             dists[x + y * w] = a.min(b) + v[x + y * w];
         }
     }
+    for _ in 0..500 {
+        for n in 1..(w + h) {
+            for i in 0..=n {
+                let x = n - i;
+                let y = i;
+                if x >= w || y >= h {
+                    continue;
+                }
+                let mut a = u32::MAX;
+                if x != 0 {
+                    a = dists[(x - 1) + y * w]
+                }
+                let mut b = u32::MAX;
+                if y != 0 {
+                    b = dists[x + (y - 1) * w]
+                }
+                let mut c = u32::MAX;
+                if x != w - 1 {
+                    c = dists[(x + 1) + y * w]
+                }
+                let mut d = u32::MAX;
+                if y != h - 1 {
+                    d = dists[x + (y + 1) * w]
+                }
+                dists[x + y * w] = a.min(b).min(c).min(d) + v[x + y * w];
+            }
+        }
+    }
+    // v.chunks(w).for_each(|x| println!("{:?}", x));
     *dists.last().unwrap()
 }
