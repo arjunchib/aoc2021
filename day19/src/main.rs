@@ -1,8 +1,4 @@
-use std::collections::HashMap;
 use std::collections::HashSet;
-use std::fmt;
-use std::hash::{Hash, Hasher};
-
 fn main() {
     // Part 1
     assert_eq!(calc1(include_str!("test.in")), 79);
@@ -15,244 +11,56 @@ fn main() {
 
 #[derive(Debug)]
 struct Scanner {
-    id: usize,
     beacons: Vec<Beacon>,
-    pos: (isize, isize, isize),
+    location: Option<Beacon>,
 }
 
-#[derive(Clone)]
-struct Beacon {
-    x: isize,
-    y: isize,
-    z: isize,
-    neighbors: Vec<f32>,
-}
+#[derive(Debug, Clone)]
+struct Beacon(isize, isize, isize);
 
 impl Scanner {
-    fn from(input: &[String]) -> Self {
-        let mut lines = input.iter();
-        let first = lines.next().unwrap();
-        let id: usize = first[12..first.len() - 4].parse().unwrap();
-        let mut beacons: Vec<Beacon> = lines
+    fn from(input: &[&str]) -> Self {
+        let beacons: Vec<Beacon> = input
+            .iter()
+            .skip(1)
             .map(|line| {
                 let loc: Vec<isize> = line.split(',').map(|x| x.parse().unwrap()).collect();
-                Beacon {
-                    x: loc[0],
-                    y: loc[1],
-                    z: loc[2],
-                    neighbors: vec![],
-                }
+                Beacon(loc[0], loc[1], loc[2])
             })
             .collect();
-        let original_beacons = beacons.clone();
-        for b1 in &mut beacons {
-            for b2 in &original_beacons {
-                b1.add_neighbor(b1.dist(b2));
-            }
+        Self {
+            beacons,
+            location: None,
         }
-        let pos = (0, 0, 0);
-        Scanner { id, beacons, pos }
     }
 
-    fn common_beacons(&self, other: &Self) -> Vec<(Beacon, Beacon)> {
-        let mut beacons = vec![];
+    fn change_basis(&mut self, other: Self) {}
+
+    fn match_beacons(&self, other: Self) -> Option<Vec<(Beacon, Beacon)>> {
         for b1 in &self.beacons {
-            for b2 in &other.beacons {
-                if b1.common_beacons(b2) >= 12 {
-                    beacons.push((b1.clone(), b2.clone()));
-                }
-            }
-        }
-        beacons
-    }
-
-    fn relative_location(&self, other: &Self) -> Option<(isize, isize, isize)> {
-        println!("{:?}", self.common_beacons(other));
-        let locs: Option<HashSet<(isize, isize, isize)>> = self
-            .common_beacons(other)
-            .iter()
-            .map(|(b1, b2)| {
-                HashSet::from_iter(
-                    b2.all_orientations()
-                        .iter()
-                        .map(|b| (b1.x - b.0, b1.y - b.1, b1.z - b.2)),
-                )
-            })
-            .inspect(|x| println!("{:?}", x))
-            .reduce(|a, b| {
-                a.intersection(&b)
-                    .copied()
-                    .collect::<HashSet<(isize, isize, isize)>>()
-            });
-        println!("{:?}", locs);
-        if let Some(mut n) = locs {
-            if let Some(loc) = n.drain().last() {
-                return Some((self.pos.0 + loc.0, self.pos.1 + loc.1, self.pos.2 + loc.2));
-            }
+            for b2 in &other.beacons {}
         }
         None
     }
 }
 
-impl Hash for Scanner {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        self.id.hash(state);
-    }
-}
-
-impl PartialEq for Scanner {
-    fn eq(&self, other: &Self) -> bool {
-        self.id == other.id
-    }
-}
-
-impl Eq for Scanner {}
-
 impl Beacon {
     fn dist(&self, other: &Self) -> f32 {
-        let x = (self.x - other.x).checked_pow(2).unwrap();
-        let y = (self.y - other.y).checked_pow(2).unwrap();
-        let z = (self.z - other.z).checked_pow(2).unwrap();
-        ((x + y + z) as f32).sqrt()
-    }
-
-    fn add_neighbor(&mut self, dist: f32) {
-        self.neighbors.push(dist)
-    }
-
-    fn common_beacons(&self, other: &Self) -> usize {
-        let mut count = 0;
-        let error_margin = f32::EPSILON;
-        for dist1 in &self.neighbors {
-            for dist2 in &other.neighbors {
-                if (*dist1 - *dist2).abs() < error_margin {
-                    count += 1
-                }
-            }
-        }
-        count
-    }
-
-    fn all_orientations(&self) -> Vec<(isize, isize, isize)> {
-        let mut orientations = vec![];
-        for dir in [-1, 1] {
-            for dim in ["x", "y", "z"] {
-                let rot = match dim {
-                    "x" => ["y", "z"],
-                    "y" => ["x", "z"],
-                    "z" => ["x", "y"],
-                    _ => panic!(),
-                };
-                let a = self[rot[0]];
-                let b = self[rot[1]];
-                orientations.push((dir * self[dim], a, -b));
-                orientations.push((dir * self[dim], -b, -a));
-                orientations.push((dir * self[dim], -a, b));
-                orientations.push((dir * self[dim], b, a));
-            }
-        }
-        orientations
-        // let x = self.x;
-        // let y = self.y;
-        // let z = self.z;
-        // vec![
-        //     (x, y, z),
-        //     (x, z, -y),
-        //     (x, -y, -z),
-        //     (x, -z, y),
-        //     (-x, z, -y),
-        //     (-x, -y, -z),
-        //     (-x, -z, y),
-        //     (-x, y, z),
-        //     (y, z, -x),
-        //     (y, -x, -z),
-        //     (y, -z, x),
-        //     (y, x, z),
-        //     (-y, -z, x),
-        //     (-y, x, z),
-        //     (-y, z, -x),
-        //     (-y, -x, -z),
-        //     (z, -x, -y),
-        //     (z, -y, x),
-        //     (z, x, y),
-        //     (z, y, -x),
-        //     (-z, x, y),
-        //     (-z, y, -x),
-        //     (-z, -x, -y),
-        //     (-z, -y, x),
-        // ]
-    }
-}
-
-impl fmt::Debug for Beacon {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}, {}, {}", self.x, self.y, self.z)
-    }
-}
-
-impl std::ops::Index<&'_ str> for Beacon {
-    type Output = isize;
-    fn index(&self, s: &str) -> &isize {
-        match s {
-            "x" => &self.x,
-            "y" => &self.y,
-            "z" => &self.z,
-            _ => panic!("unknown field: {}", s),
-        }
-    }
-}
-
-fn locate_scanners(scanners: &mut Vec<&mut Scanner>) {
-    let mut unvisited: HashSet<usize> = (1..scanners.len()).collect();
-    let mut stack = vec![0];
-    let mut map = HashMap::new();
-    // let posi = scanners[0].relative_location(scanners[3]);
-    // println!("{:?}", posi);
-    // return;
-    while !unvisited.is_empty() {
-        println!("{:?}", unvisited);
-        let i = stack.pop().unwrap();
-        for j in unvisited.clone() {
-            let s1 = &scanners[i];
-            let s2 = &scanners[j];
-            // println!("{:?}", s1);
-            // println!("{:?}", s2);
-            match s1.relative_location(s2) {
-                None => {}
-                Some(pos) => {
-                    scanners[j].pos = pos;
-                    unvisited.remove(&j);
-                    stack.push(j);
-                    map.insert(j, i);
-                }
-            };
-        }
-    }
-    while map.values().any(|x| *x != 0) {
-        for (i, j) in map.clone().iter().filter(|(_, v)| **v != 0) {
-            if map[j] == 0 {
-                let s1 = &scanners[*i];
-                let s2 = &scanners[*j];
-                scanners[*i].pos = (
-                    s1.pos.0 + s2.pos.0,
-                    s1.pos.1 + s2.pos.1,
-                    s1.pos.2 + s2.pos.2,
-                );
-                map.insert(*i, 0);
-            }
-        }
+        let a = (self.0 - other.0).checked_pow(2).unwrap();
+        let b = (self.1 - other.1).checked_pow(2).unwrap();
+        let c = (self.2 - other.2).checked_pow(2).unwrap();
+        ((a + b + c) as f32).sqrt()
     }
 }
 
 fn calc1(input: &str) -> usize {
-    let lines: Vec<String> = input.lines().map(String::from).collect();
+    let lines: Vec<&str> = input.lines().collect();
     let mut s: Vec<Scanner> = lines
         .split(|x| x.is_empty())
         .map(|x| Scanner::from(x))
         .collect();
-    println!("{:#?}", s[1].relative_location(&s[4]));
-    // locate_scanners(&mut s.iter_mut().collect());
-    // println!("{:#?}", s);
+    s[0].location = Some(Beacon(0, 0, 0));
+    println!("{:?}", s[0]);
     0
 }
 
