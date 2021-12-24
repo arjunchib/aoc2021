@@ -1,14 +1,13 @@
-use std::collections::HashSet;
 use std::fmt;
 
 fn main() {
     // Part 1
     assert_eq!(calc1(include_str!("test.in")), 79);
-    // println!("part 1: {}", calc1(include_str!("real.in")));
+    println!("part 1: {}", calc1(include_str!("real.in")));
 
     // Part 2
-    // assert_eq!(calc2(include_str!("test.in")), 3993);
-    // println!("part 2: {}", calc2(include_str!("real.in")));
+    assert_eq!(calc2(include_str!("test.in")), 3621);
+    println!("part 2: {}", calc2(include_str!("real.in")));
 }
 
 #[derive(Debug, Clone)]
@@ -17,7 +16,7 @@ struct Scanner {
     location: Option<Beacon>,
 }
 
-#[derive(Clone, PartialEq)]
+#[derive(Clone, PartialEq, PartialOrd, Ord, Eq)]
 struct Beacon(isize, isize, isize);
 
 impl Scanner {
@@ -81,6 +80,12 @@ impl Scanner {
             .map(|b| (b.clone(), b.signature(&self.beacons)))
             .collect()
     }
+
+    fn dist(&self, other: &Self) -> usize {
+        let loc1 = self.location.as_ref().unwrap();
+        let loc2 = other.location.as_ref().unwrap();
+        loc1.manhattan_dist(loc2)
+    }
 }
 
 impl Beacon {
@@ -89,6 +94,13 @@ impl Beacon {
         let b = (self.1 - other.1).checked_pow(2).unwrap();
         let c = (self.2 - other.2).checked_pow(2).unwrap();
         ((a + b + c) as f32).sqrt()
+    }
+
+    fn manhattan_dist(&self, other: &Self) -> usize {
+        let d1 = (self.0 - other.0).abs();
+        let d2 = (self.1 - other.1).abs();
+        let d3 = (self.2 - other.2).abs();
+        (d1 + d2 + d3) as usize
     }
 
     fn signature(&self, neighbors: &Vec<Beacon>) -> Vec<f32> {
@@ -180,28 +192,51 @@ impl Basis {
     }
 }
 
-fn calc1(input: &str) -> usize {
+fn normalized_scanners(input: &str) -> Vec<Scanner> {
     let lines: Vec<&str> = input.lines().collect();
     let mut s: Vec<Scanner> = lines
         .split(|x| x.is_empty())
         .map(|x| Scanner::from(x))
         .collect();
     s[0].location = Some(Beacon(0, 0, 0));
-    // let root = s[0].clone();
-    // s[1].normalize(&root);
-    // println!("{:#?}", s[1]);
-    // let s1 = s[1].clone();
-    // s[4].normalize(&s1);
-    // println!("{:#?}", s[4]);
-    // let s4 = s[4].clone();
-    // s[2].normalize(&s4);
-    // println!("{:#?}", s[2]);
-    // let s2 = s[2].clone();
-    // s[3].normalize(&s1);
-    // println!("{:#?}", s[3]);
-    0
+    let mut unvisited = s.clone();
+    let mut visited = vec![unvisited.remove(0)];
+    let mut closed = vec![];
+    while !unvisited.is_empty() {
+        let scanner = visited.pop().unwrap();
+        let mut failed = vec![];
+        while let Some(mut s1) = unvisited.pop() {
+            if s1.normalize(&scanner) {
+                visited.push(s1);
+            } else {
+                failed.push(s1);
+            }
+        }
+        unvisited = failed;
+        closed.push(scanner);
+    }
+    closed.append(&mut visited);
+    closed
 }
 
-// fn calc2(input: &str) -> usize {
-//     0
-// }
+fn calc1(input: &str) -> usize {
+    let scanners = normalized_scanners(input);
+    let mut beacons = vec![];
+    for mut scanner in scanners {
+        beacons.append(&mut scanner.beacons);
+    }
+    beacons.sort();
+    beacons.dedup();
+    beacons.len()
+}
+
+fn calc2(input: &str) -> usize {
+    let scanners = normalized_scanners(input);
+    let mut max = 0;
+    for s1 in &scanners {
+        for s2 in &scanners {
+            max = s1.dist(s2).max(max);
+        }
+    }
+    max
+}
