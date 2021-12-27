@@ -18,12 +18,13 @@ enum Operand {
     Number(isize),
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Eq, Hash, PartialEq)]
 struct ALU {
     w: isize,
     x: isize,
     y: isize,
     z: isize,
+    ip: usize,
 }
 
 impl ALU {
@@ -33,6 +34,7 @@ impl ALU {
             x: 0,
             y: 0,
             z: 0,
+            ip: 0,
         }
     }
 
@@ -48,29 +50,30 @@ impl ALU {
         self.x = 0;
         self.y = 0;
         self.z = 0;
+        self.ip = 0;
     }
 
-    fn run(&mut self, input: &str, program: &str) {
-        self.reset();
-        let program = program.lines();
-        let input: Vec<&str> = input.split("").skip(1).collect();
-        let mut input = input.iter();
-        for line in program {
-            let args: Vec<&str> = line.split_whitespace().collect();
-            let op = args[0];
-            let a = ALU::convert_operand(args[1]);
-            let b = ALU::convert_operand(args.get(2).unwrap_or_else(|| input.next().unwrap()));
-            match op {
-                "inp" => self.inp(a, b),
-                "add" => self.add(a, b),
-                "mul" => self.mul(a, b),
-                "div" => self.div(a, b),
-                "mod" => self.modulo(a, b),
-                "eql" => self.eql(a, b),
-                _ => panic!(),
-            }
-        }
-    }
+    // fn run(&mut self, input: &str, program: &str) {
+    //     self.reset();
+    //     let program = program.lines();
+    //     let input: Vec<&str> = input.split("").skip(1).collect();
+    //     let mut input = input.iter();
+    //     for line in program {
+    //         let args: Vec<&str> = line.split_whitespace().collect();
+    //         let op = args[0];
+    //         let a = ALU::convert_operand(args[1]);
+    //         let b = ALU::convert_operand(args.get(2).unwrap_or_else(|| input.next().unwrap()));
+    //         match op {
+    //             "inp" => self.inp(a, b),
+    //             "add" => self.add(a, b),
+    //             "mul" => self.mul(a, b),
+    //             "div" => self.div(a, b),
+    //             "mod" => self.modulo(a, b),
+    //             "eql" => self.eql(a, b),
+    //             _ => panic!(),
+    //         }
+    //     }
+    // }
 
     fn step(&mut self, line: &str, input: Option<&str>) {
         let args: Vec<&str> = line.split_whitespace().collect();
@@ -86,10 +89,10 @@ impl ALU {
             "eql" => self.eql(a, b),
             _ => panic!(),
         }
+        self.ip += 1;
     }
 
     fn write(&mut self, register: char, value: isize) {
-        // println!("{:?}", self);
         match register {
             'w' => self.w = value,
             'x' => self.x = value,
@@ -165,30 +168,79 @@ impl ALU {
 }
 
 struct Program {
-    instructions: String,
-    cache: HashMap<ALU, isize>,
+    instructions: Vec<String>,
+    cache: HashMap<(isize, usize), Option<String>>,
 }
 
 impl Program {
     fn from(input: &str) -> Self {
         Self {
-            instructions: String::from(input),
+            instructions: input.lines().map(String::from).collect(),
             cache: HashMap::new(),
         }
     }
 
-    fn analyze(&self) {}
+    fn analyze(&mut self) -> isize {
+        let result = self.analyze_step(ALU::new());
+        result.unwrap().parse().unwrap()
+    }
 
-    fn analyze_step(&self, alu: ALU, ip: usize) {}
+    fn memo_analyze_step(&mut self, alu: ALU) -> Option<String> {
+        if let Some(c) = self.cache.get(&(alu.z, alu.ip)) {
+            c.clone()
+        } else {
+            let val = self.analyze_step(alu.clone());
+            if val.is_some() {
+                println!("{:?}", val);
+            }
+            self.cache.insert((alu.z, alu.ip), val.clone());
+            val
+        }
+    }
 
-    fn run(&mut self, alu: &mut ALU, input: usize) -> isize {
-        alu.run(&input.to_string(), &self.instructions);
+    fn analyze_step(&mut self, alu: ALU) -> Option<String> {
+        if alu.ip == self.instructions.len() {
+            if alu.z < 1000 {
+                println!("{:?}", alu)
+            };
+            return match alu.z {
+                0 => Some(String::from("")),
+                _ => None,
+            };
+        }
+        let line = self.instructions[alu.ip].clone();
+        for i in (1..=9).rev() {
+            let mut new_alu = alu.clone();
+            new_alu.step(&line, Some(&i.to_string()));
+            for _ in 0..17 {
+                let line = self.instructions[new_alu.ip].clone();
+                new_alu.step(&line, None);
+            }
+            if let Some(n) = self.memo_analyze_step(new_alu) {
+                return Some(i.to_string() + &n);
+            }
+        }
+        None
+    }
+
+    fn run(&mut self, input: &str) -> isize {
+        let mut alu = ALU::new();
+        let mut digits = input.chars();
+        for line in &self.instructions {
+            if line.starts_with("inp") {
+                alu.step(line, Some(&String::from(digits.next().unwrap())));
+            } else {
+                alu.step(line, None);
+            }
+        }
         alu.z
     }
 }
 
 fn calc1(input: &str) -> usize {
     let mut p = Program::from(input);
+    println!("{}", p.analyze());
+    // println!("{}", p.run("99997391969649"));
     0
 }
 
