@@ -1,11 +1,15 @@
+use ahash::RandomState;
 use std::collections::HashMap;
+use std::time::Instant;
 
 fn main() {
     // Part 1
     // println!("part 1: {}", calc1(include_str!("test1.in")));
     // println!("part 1: {}", calc1(include_str!("test2.in")));
     // println!("part 1: {}", calc1(include_str!("test3.in")));
+    let now = Instant::now();
     println!("part 1: {}", calc1(include_str!("real.in")));
+    println!("{}", now.elapsed().as_micros());
 
     // Part 2
     // assert_eq!(calc2(include_str!("test.in")), 3993);
@@ -53,33 +57,14 @@ impl ALU {
         self.ip = 0;
     }
 
-    // fn run(&mut self, input: &str, program: &str) {
-    //     self.reset();
-    //     let program = program.lines();
-    //     let input: Vec<&str> = input.split("").skip(1).collect();
-    //     let mut input = input.iter();
-    //     for line in program {
-    //         let args: Vec<&str> = line.split_whitespace().collect();
-    //         let op = args[0];
-    //         let a = ALU::convert_operand(args[1]);
-    //         let b = ALU::convert_operand(args.get(2).unwrap_or_else(|| input.next().unwrap()));
-    //         match op {
-    //             "inp" => self.inp(a, b),
-    //             "add" => self.add(a, b),
-    //             "mul" => self.mul(a, b),
-    //             "div" => self.div(a, b),
-    //             "mod" => self.modulo(a, b),
-    //             "eql" => self.eql(a, b),
-    //             _ => panic!(),
-    //         }
-    //     }
-    // }
-
-    fn step(&mut self, line: &str, input: Option<&str>) {
+    fn step(&mut self, line: &str, input: Option<isize>) {
         let args: Vec<&str> = line.split_whitespace().collect();
         let op = args[0];
         let a = ALU::convert_operand(args[1]);
-        let b = ALU::convert_operand(args.get(2).unwrap_or_else(|| input.as_ref().unwrap()));
+        let b = match input {
+            Some(input) => Operand::Number(input),
+            None => ALU::convert_operand(args.get(2).unwrap()),
+        };
         match op {
             "inp" => self.inp(a, b),
             "add" => self.add(a, b),
@@ -169,79 +154,96 @@ impl ALU {
 
 struct Program {
     instructions: Vec<String>,
-    cache: HashMap<(isize, usize), Option<String>>,
+    cache: HashMap<(isize, isize, isize), isize, RandomState>,
+    hits: usize,
+    total: usize,
 }
 
 impl Program {
     fn from(input: &str) -> Self {
         Self {
             instructions: input.lines().map(String::from).collect(),
-            cache: HashMap::new(),
+            cache: HashMap::default(),
+            hits: 0,
+            total: 0,
         }
     }
 
-    fn analyze(&mut self) -> isize {
-        let result = self.analyze_step(ALU::new());
-        result.unwrap().parse().unwrap()
-    }
-
-    fn memo_analyze_step(&mut self, alu: ALU) -> Option<String> {
-        if let Some(c) = self.cache.get(&(alu.z, alu.ip)) {
-            c.clone()
-        } else {
-            let val = self.analyze_step(alu.clone());
-            if val.is_some() {
-                println!("{:?}", val);
-            }
-            self.cache.insert((alu.z, alu.ip), val.clone());
-            val
-        }
-    }
-
-    fn analyze_step(&mut self, alu: ALU) -> Option<String> {
-        if alu.ip == self.instructions.len() {
-            if alu.z < 1000 {
-                println!("{:?}", alu)
-            };
-            return match alu.z {
-                0 => Some(String::from("")),
-                _ => None,
-            };
-        }
-        let line = self.instructions[alu.ip].clone();
-        for i in (1..=9).rev() {
-            let mut new_alu = alu.clone();
-            new_alu.step(&line, Some(&i.to_string()));
-            for _ in 0..17 {
-                let line = self.instructions[new_alu.ip].clone();
-                new_alu.step(&line, None);
-            }
-            if let Some(n) = self.memo_analyze_step(new_alu) {
-                return Some(i.to_string() + &n);
-            }
-        }
-        None
-    }
-
-    fn run(&mut self, input: &str) -> isize {
+    fn run(&self, a: isize) -> isize {
+        let a = a.to_string();
+        let mut ws = a.chars().map(|x| x.to_digit(10).unwrap() as isize);
         let mut alu = ALU::new();
-        let mut digits = input.chars();
-        for line in &self.instructions {
-            if line.starts_with("inp") {
-                alu.step(line, Some(&String::from(digits.next().unwrap())));
-            } else {
-                alu.step(line, None);
-            }
+        for ins in &self.instructions {
+            let w = match ins.starts_with("inp") {
+                true => ws.next(),
+                false => None,
+            };
+            alu.step(ins, w);
         }
         alu.z
     }
+
+    fn fast_run(&mut self, a: isize) -> isize {
+        let a = a.to_string();
+        let mut ws = a.chars().map(|x| x.to_digit(10).unwrap() as isize);
+        let mut z = 0;
+        for i in 0..14 {
+            z = self.run_sub(i, z, ws.next().unwrap());
+        }
+        z
+    }
+
+    fn run_sub(&mut self, i: isize, z: isize, w: isize) -> isize {
+        self.total += 1;
+        if let Some(n) = self.cache.get(&(i, z, w)) {
+            self.hits += 1;
+            return *n;
+        }
+        let mut alu = ALU::new();
+        alu.z = z;
+        let start = i * 18;
+        for j in start..start + 18 {
+            let ins = &self.instructions[j as usize];
+            let w = match ins.starts_with("inp") {
+                true => Some(w),
+                false => None,
+            };
+            alu.step(ins, w);
+        }
+        self.cache.insert((i, z, w), alu.z);
+        alu.z
+    }
+
+    fn secant(&self) -> isize {
+        let mut p0: i128 = 99999999999999;
+        let mut p1: i128 = 99999999999998;
+        let mut q0 = self.run(p0 as isize) as i128;
+        let mut q1 = self.run(p1 as isize) as i128;
+        loop {
+            println!("{} {} {} {}", p0, p1, q0, q1);
+            let p = p1 - q1 * (p1 - p0) / (q1 - q0);
+            if (p - p1).abs() == 0 {
+                break p as isize;
+            }
+            println!("{}", p);
+            p0 = p1;
+            q0 = q1;
+            p1 = p;
+            q1 = self.run(p as isize) as i128;
+        }
+    }
 }
 
-fn calc1(input: &str) -> usize {
+fn calc1(input: &str) -> isize {
     let mut p = Program::from(input);
-    println!("{}", p.analyze());
-    // println!("{}", p.run("99997391969649"));
+    for i in (11111111111111..99999999999999).rev().take(1000) {
+        // assert_eq!(p.fast_run(i), p.run(i));
+        // println!("{} {}", i, p.fast_run(i));
+        p.fast_run(i);
+    }
+    println!("{}", p.hits as f32 / p.total as f32);
     0
+    // p.secant() as usize
 }
 
 // fn calc2(input: &str) -> usize {
