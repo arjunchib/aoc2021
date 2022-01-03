@@ -7,13 +7,10 @@ fn main() {
     // println!("part 1: {}", calc1(include_str!("test1.in")));
     // println!("part 1: {}", calc1(include_str!("test2.in")));
     // println!("part 1: {}", calc1(include_str!("test3.in")));
-    let now = Instant::now();
-    println!("part 1: {}", calc1(include_str!("real.in")));
-    println!("{}", now.elapsed().as_secs());
+    // println!("part 1: {}", calc1(include_str!("real.in")));
 
     // Part 2
-    // assert_eq!(calc2(include_str!("test.in")), 3993);
-    // println!("part 2: {}", calc2(include_str!("real.in")));
+    println!("part 2: {}", calc2(include_str!("real.in")));
 }
 
 #[derive(Debug, Clone)]
@@ -179,18 +176,19 @@ impl Program {
     }
 
     fn highest_root(&mut self) -> isize {
-        let mut states: HashMap<isize, isize, RandomState> = HashMap::default();
+        let mut states: HashMap<isize, isize> = HashMap::default();
         states.insert(0, 0);
         for i in 0..14 {
-            let mut new_states: HashMap<isize, isize, RandomState> = HashMap::default();
-            for (z, num) in states.drain() {
+            let mut sorted: Vec<(isize, isize)> = states.drain().collect();
+            sorted.sort_unstable_by_key(|x| x.1);
+            sorted.reverse();
+            for (z, num) in sorted.drain(..) {
                 for j in (1..=9).rev() {
-                    let z = self.run_sub(i, z, j);
-                    let num = num + j * isize::pow(10, 13 - i as u32);
-                    new_states.entry(z).or_insert(num);
+                    states
+                        .entry(self.run_sub(i, z, j))
+                        .or_insert_with(|| num + j * isize::pow(10, 13 - i as u32));
                 }
             }
-            states = new_states;
             println!("{:2} {}", i, states.len(),);
         }
         let mut nums: Vec<isize> = states.values().copied().collect();
@@ -202,14 +200,39 @@ impl Program {
         }
         0
     }
+
+    fn lowest_root(&mut self) -> isize {
+        let mut states: HashMap<isize, isize> = HashMap::default();
+        states.insert(0, 0);
+        for i in 0..14 {
+            let mut sorted: Vec<(isize, isize)> = states.drain().collect();
+            sorted.sort_unstable_by_key(|x| x.1);
+            for (z, num) in sorted.drain(..) {
+                for j in 1..=9 {
+                    states
+                        .entry(self.run_sub(i, z, j))
+                        .or_insert_with(|| num + j * isize::pow(10, 13 - i as u32));
+                }
+            }
+            println!("{:2} {}", i, states.len(),);
+        }
+        let mut nums: Vec<isize> = states.values().copied().collect();
+        nums.sort_unstable();
+        for num in nums.iter() {
+            if self.fast_run(*num) == 0 {
+                return *num;
+            };
+        }
+        0
+    }
 }
 
 fn calc1(input: &str) -> isize {
     let mut p = Program::from(input);
-    // p.run(16964171414113)
     p.highest_root()
 }
 
-// fn calc2(input: &str) -> usize {
-//     0
-// }
+fn calc2(input: &str) -> isize {
+    let mut p = Program::from(input);
+    p.lowest_root()
+}
