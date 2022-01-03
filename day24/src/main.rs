@@ -9,17 +9,54 @@ fn main() {
     // println!("part 1: {}", calc1(include_str!("test3.in")));
     let now = Instant::now();
     println!("part 1: {}", calc1(include_str!("real.in")));
-    println!("{}", now.elapsed().as_micros());
+    println!("{}", now.elapsed().as_secs());
 
     // Part 2
     // assert_eq!(calc2(include_str!("test.in")), 3993);
     // println!("part 2: {}", calc2(include_str!("real.in")));
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 enum Operand {
     Variable(char),
     Number(isize),
+}
+
+#[derive(Debug, Clone, PartialEq)]
+enum Operation {
+    Inp,
+    Add,
+    Mul,
+    Div,
+    Mod,
+    Eql,
+}
+
+#[derive(Debug, Clone)]
+struct Instruction(Operation, char, Operand);
+
+impl From<&str> for Instruction {
+    fn from(s: &str) -> Self {
+        let mut parts = s.split_whitespace();
+        let op = parts.next().unwrap();
+        let a = parts.next().unwrap();
+        let b = parts.next().unwrap_or("0");
+        let op = match op {
+            "inp" => Operation::Inp,
+            "add" => Operation::Add,
+            "mul" => Operation::Mul,
+            "div" => Operation::Div,
+            "mod" => Operation::Mod,
+            "eql" => Operation::Eql,
+            _ => panic!(),
+        };
+        let a = a.chars().last().unwrap();
+        let b = match b.parse() {
+            Ok(n) => Operand::Number(n),
+            Err(_) => Operand::Variable(b.chars().last().unwrap()),
+        };
+        Instruction(op, a, b)
+    }
 }
 
 #[derive(Debug, Clone, Eq, Hash, PartialEq)]
@@ -28,7 +65,6 @@ struct ALU {
     x: isize,
     y: isize,
     z: isize,
-    ip: usize,
 }
 
 impl ALU {
@@ -38,43 +74,27 @@ impl ALU {
             x: 0,
             y: 0,
             z: 0,
-            ip: 0,
         }
     }
 
-    fn convert_operand(a: &str) -> Operand {
-        match a {
-            "w" | "x" | "y" | "z" => Operand::Variable(a.chars().last().unwrap()),
-            _ => Operand::Number(a.parse().unwrap()),
-        }
-    }
-
-    fn reset(&mut self) {
-        self.w = 0;
-        self.x = 0;
-        self.y = 0;
-        self.z = 0;
-        self.ip = 0;
-    }
-
-    fn step(&mut self, line: &str, input: Option<isize>) {
-        let args: Vec<&str> = line.split_whitespace().collect();
-        let op = args[0];
-        let a = ALU::convert_operand(args[1]);
-        let b = match input {
-            Some(input) => Operand::Number(input),
-            None => ALU::convert_operand(args.get(2).unwrap()),
+    fn run(&mut self, instruction: &Instruction) {
+        let a = self.get(instruction.1);
+        let b = match instruction.2 {
+            Operand::Variable(b) => self.get(b),
+            Operand::Number(b) => b,
         };
-        match op {
-            "inp" => self.inp(a, b),
-            "add" => self.add(a, b),
-            "mul" => self.mul(a, b),
-            "div" => self.div(a, b),
-            "mod" => self.modulo(a, b),
-            "eql" => self.eql(a, b),
-            _ => panic!(),
-        }
-        self.ip += 1;
+        let result = match &instruction.0 {
+            Operation::Inp => b,
+            Operation::Add => a + b,
+            Operation::Mul => a * b,
+            Operation::Div => a / b,
+            Operation::Mod => a % b,
+            Operation::Eql => match a == b {
+                true => 1,
+                false => 0,
+            },
+        };
+        self.write(instruction.1, result);
     }
 
     fn write(&mut self, register: char, value: isize) {
@@ -96,64 +116,10 @@ impl ALU {
             _ => panic!(),
         }
     }
-
-    fn operand_value(&self, b: Operand) -> isize {
-        match b {
-            Operand::Variable(b) => self.get(b),
-            Operand::Number(b) => b,
-        }
-    }
-
-    fn inp(&mut self, a: Operand, b: Operand) {
-        if let Operand::Variable(a) = a {
-            if let Operand::Number(b) = b {
-                self.write(a, b);
-            }
-        }
-    }
-
-    fn add(&mut self, a: Operand, b: Operand) {
-        if let Operand::Variable(a) = a {
-            let b = self.operand_value(b);
-            self.write(a, self.get(a) + b);
-        }
-    }
-
-    fn mul(&mut self, a: Operand, b: Operand) {
-        if let Operand::Variable(a) = a {
-            let b = self.operand_value(b);
-            self.write(a, self.get(a) * b);
-        }
-    }
-
-    fn div(&mut self, a: Operand, b: Operand) {
-        if let Operand::Variable(a) = a {
-            let b = self.operand_value(b);
-            self.write(a, self.get(a) / b);
-        }
-    }
-
-    fn modulo(&mut self, a: Operand, b: Operand) {
-        if let Operand::Variable(a) = a {
-            let b = self.operand_value(b);
-            self.write(a, self.get(a) % b);
-        }
-    }
-
-    fn eql(&mut self, a: Operand, b: Operand) {
-        if let Operand::Variable(a) = a {
-            let b = self.operand_value(b);
-            let value = match self.get(a) == b {
-                true => 1,
-                false => 0,
-            };
-            self.write(a, value);
-        }
-    }
 }
 
 struct Program {
-    instructions: Vec<String>,
+    instructions: Vec<Instruction>,
     cache: HashMap<(isize, isize, isize), isize, RandomState>,
     hits: usize,
     total: usize,
@@ -162,7 +128,7 @@ struct Program {
 impl Program {
     fn from(input: &str) -> Self {
         Self {
-            instructions: input.lines().map(String::from).collect(),
+            instructions: input.lines().map(Instruction::from).collect(),
             cache: HashMap::default(),
             hits: 0,
             total: 0,
@@ -174,11 +140,11 @@ impl Program {
         let mut ws = a.chars().map(|x| x.to_digit(10).unwrap() as isize);
         let mut alu = ALU::new();
         for ins in &self.instructions {
-            let w = match ins.starts_with("inp") {
-                true => ws.next(),
-                false => None,
-            };
-            alu.step(ins, w);
+            let mut ins = ins.clone();
+            if ins.0 == Operation::Inp {
+                ins.2 = Operand::Number(ws.next().unwrap());
+            }
+            alu.run(&ins);
         }
         alu.z
     }
@@ -194,44 +160,45 @@ impl Program {
     }
 
     fn run_sub(&mut self, i: isize, z: isize, w: isize) -> isize {
-        self.total += 1;
-        if let Some(n) = self.cache.get(&(i, z, w)) {
-            self.hits += 1;
-            return *n;
-        }
+        // self.total += 1;
+        // if let Some(n) = self.cache.get(&(i, z, w)) {
+        //     self.hits += 1;
+        //     return *n;
+        // }
         let mut alu = ALU::new();
         alu.z = z;
         let start = i * 18;
-        for j in start..start + 18 {
-            let ins = &self.instructions[j as usize];
-            let w = match ins.starts_with("inp") {
-                true => Some(w),
-                false => None,
-            };
-            alu.step(ins, w);
+        let mut ins = self.instructions[start as usize].clone();
+        ins.2 = Operand::Number(w);
+        alu.run(&ins);
+        for j in start + 1..start + 18 {
+            alu.run(&self.instructions[j as usize]);
         }
-        self.cache.insert((i, z, w), alu.z);
+        // self.cache.insert((i, z, w), alu.z);
         alu.z
     }
 
     fn highest_root(&mut self) -> isize {
-        let mut states: HashMap<isize, String, RandomState> = HashMap::default();
-        states.insert(0, String::new());
+        let mut states: HashMap<isize, isize, RandomState> = HashMap::default();
+        states.insert(0, 0);
         for i in 0..14 {
-            let mut new_states: HashMap<isize, String, RandomState> = HashMap::default();
-            for (z, num) in &states {
+            let mut new_states: HashMap<isize, isize, RandomState> = HashMap::default();
+            for (z, num) in states.drain() {
                 for j in (1..=9).rev() {
-                    let z = self.run_sub(i, *z, j);
-                    new_states.entry(z).or_insert(format!("{}{}", num, j));
+                    let z = self.run_sub(i, z, j);
+                    let num = num + j * isize::pow(10, 13 - i as u32);
+                    new_states.entry(z).or_insert(num);
                 }
             }
             states = new_states;
-            println!(
-                "{} {} {}",
-                i,
-                states.len(),
-                self.hits as f32 / self.total as f32
-            );
+            println!("{:2} {}", i, states.len(),);
+        }
+        let mut nums: Vec<isize> = states.values().copied().collect();
+        nums.sort_unstable();
+        for num in nums.iter().rev() {
+            if self.fast_run(*num) == 0 {
+                return *num;
+            };
         }
         0
     }
@@ -239,8 +206,8 @@ impl Program {
 
 fn calc1(input: &str) -> isize {
     let mut p = Program::from(input);
-    p.run(99999999999999)
-    // p.secant() as usize
+    // p.run(16964171414113)
+    p.highest_root()
 }
 
 // fn calc2(input: &str) -> usize {
