@@ -214,35 +214,32 @@ impl Program {
         alu.z
     }
 
-    fn secant(&self) -> isize {
-        let mut p0: i128 = 99999999999999;
-        let mut p1: i128 = 99999999999998;
-        let mut q0 = self.run(p0 as isize) as i128;
-        let mut q1 = self.run(p1 as isize) as i128;
-        loop {
-            println!("{} {} {} {}", p0, p1, q0, q1);
-            let p = p1 - q1 * (p1 - p0) / (q1 - q0);
-            if (p - p1).abs() == 0 {
-                break p as isize;
+    fn highest_root(&mut self) -> isize {
+        let mut states: HashMap<isize, String, RandomState> = HashMap::default();
+        states.insert(0, String::new());
+        for i in 0..14 {
+            let mut new_states: HashMap<isize, String, RandomState> = HashMap::default();
+            for (z, num) in &states {
+                for j in (1..=9).rev() {
+                    let z = self.run_sub(i, *z, j);
+                    new_states.entry(z).or_insert(format!("{}{}", num, j));
+                }
             }
-            println!("{}", p);
-            p0 = p1;
-            q0 = q1;
-            p1 = p;
-            q1 = self.run(p as isize) as i128;
+            states = new_states;
+            println!(
+                "{} {} {}",
+                i,
+                states.len(),
+                self.hits as f32 / self.total as f32
+            );
         }
+        0
     }
 }
 
 fn calc1(input: &str) -> isize {
     let mut p = Program::from(input);
-    for i in (11111111111111..99999999999999).rev().take(1000) {
-        // assert_eq!(p.fast_run(i), p.run(i));
-        // println!("{} {}", i, p.fast_run(i));
-        p.fast_run(i);
-    }
-    println!("{}", p.hits as f32 / p.total as f32);
-    0
+    p.run(99999999999999)
     // p.secant() as usize
 }
 
